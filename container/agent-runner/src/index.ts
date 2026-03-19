@@ -409,6 +409,7 @@ async function runQuery(
         'NotebookEdit',
         'mcp__nanoclaw__*',
         'mcp__gmail__*',
+        'mcp__homeassistant__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -428,6 +429,16 @@ async function runQuery(
           command: 'npx',
           args: ['-y', '@gongrzhe/server-gmail-autoauth-mcp'],
         },
+        ...(process.env.HA_URL && process.env.HA_TOKEN ? {
+          homeassistant: {
+            command: 'node',
+            args: [path.join(__dirname, 'ha-mcp-stdio.js')],
+            env: {
+              HA_URL: process.env.HA_URL,
+              HA_TOKEN: process.env.HA_TOKEN,
+            },
+          },
+        } : {}),
       },
       hooks: {
         PreCompact: [{ hooks: [createPreCompactHook(containerInput.assistantName)] }],

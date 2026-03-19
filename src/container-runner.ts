@@ -250,6 +250,14 @@ function buildContainerArgs(
     args.push('-e', 'CLAUDE_CODE_OAUTH_TOKEN=placeholder');
   }
 
+  // Pass Home Assistant credentials so the HA MCP server can reach it
+  const haUrl = process.env.HA_URL;
+  const haToken = process.env.HA_TOKEN;
+  if (haUrl && haToken) {
+    args.push('-e', `HA_URL=${haUrl}`);
+    args.push('-e', `HA_TOKEN=${haToken}`);
+  }
+
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
 

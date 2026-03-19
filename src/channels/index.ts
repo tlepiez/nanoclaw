@@ -6,6 +6,9 @@
 // gmail
 import './gmail.js';
 
+// homeassistant
+import './homeassistant.js';
+
 // slack
 
 // telegram
