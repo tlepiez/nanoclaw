@@ -13,6 +13,9 @@
 import { createServer, Server } from 'http';
 import { request as httpsRequest } from 'https';
 import { request as httpRequest, RequestOptions } from 'http';
+import { readFileSync } from 'fs';
+import { homedir } from 'os';
+import { join } from 'path';
 
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
@@ -21,6 +24,17 @@ export type AuthMode = 'api-key' | 'oauth';
 
 export interface ProxyConfig {
   authMode: AuthMode;
+}
+
+/** Read the current OAuth token from ~/.claude/.credentials.json if available. */
+function readClaudeCredentials(): string | undefined {
+  try {
+    const credPath = join(homedir(), '.claude', '.credentials.json');
+    const creds = JSON.parse(readFileSync(credPath, 'utf-8'));
+    return creds?.claudeAiOauth?.accessToken as string | undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function startCredentialProxy(
@@ -35,8 +49,6 @@ export function startCredentialProxy(
   ]);
 
   const authMode: AuthMode = secrets.ANTHROPIC_API_KEY ? 'api-key' : 'oauth';
-  const oauthToken =
-    secrets.CLAUDE_CODE_OAUTH_TOKEN || secrets.ANTHROPIC_AUTH_TOKEN;
 
   const upstreamUrl = new URL(
     secrets.ANTHROPIC_BASE_URL || 'https://api.anthropic.com',
@@ -67,11 +79,14 @@ export function startCredentialProxy(
           delete headers['x-api-key'];
           headers['x-api-key'] = secrets.ANTHROPIC_API_KEY;
         } else {
-          // OAuth mode: replace placeholder Bearer token with the real one
-          // only when the container actually sends an Authorization header
-          // (exchange request + auth probes). Post-exchange requests use
-          // x-api-key only, so they pass through without token injection.
+          // OAuth mode: replace placeholder Bearer token with the real one.
+          // Read dynamically on each request so token refreshes are picked up
+          // immediately without a service restart.
           if (headers['authorization']) {
+            const oauthToken =
+              readClaudeCredentials() ||
+              secrets.CLAUDE_CODE_OAUTH_TOKEN ||
+              secrets.ANTHROPIC_AUTH_TOKEN;
             delete headers['authorization'];
             if (oauthToken) {
               headers['authorization'] = `Bearer ${oauthToken}`;
