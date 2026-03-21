@@ -65,9 +65,47 @@ export function detectApiProvider(text: string): string | null {
   return null;
 }
 
+/**
+ * Patterns indicating a "nothing found" result from a scheduled task.
+ * Messages matching these patterns are suppressed (return '' from formatOutbound).
+ */
+const TASK_SILENCE_PATTERNS = [
+  // French
+  'aucun email non lu',
+  'aucun email trouvé',
+  'aucune notification de livraison',
+  'aucun virement',
+  'aucune livraison',
+  'aucune mise à jour de livraison',
+  'aucun nouveau message',
+  'rien à signaler',
+  'rien de nouveau',
+  'tâche terminée silencieusement',
+  'pas de message envoyé',
+  'arrêt silencieux',
+  // English
+  'no emails found',
+  'no unread emails',
+  'no notifications found',
+  'no delivery notification',
+  'nothing found',
+  'nothing to report',
+  'completed silently',
+  'task completed silently',
+  'no new messages',
+];
+
+export function isSilentResult(text: string): boolean {
+  const lower = text.toLowerCase();
+  return TASK_SILENCE_PATTERNS.some((p) => lower.includes(p));
+}
+
 export function formatOutbound(rawText: string): string {
   const text = stripInternalTags(rawText);
   if (!text) return '';
+
+  // Suppress "nothing found" task results — no message sent to user
+  if (isSilentResult(text)) return '';
 
   // Enrich authentication error messages with the API provider name
   const provider = detectApiProvider(text);
@@ -80,6 +118,7 @@ export function formatOutbound(rawText: string): string {
 
   return text;
 }
+
 
 export function routeOutbound(
   channels: Channel[],
