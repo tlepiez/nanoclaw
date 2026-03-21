@@ -36,6 +36,7 @@ export class GmailChannel implements Channel {
   private opts: GmailChannelOpts;
   private pollIntervalMs: number;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private tokenRefreshTimer: ReturnType<typeof setInterval> | null = null;
   private processedIds = new Set<string>();
   private threadMeta = new Map<string, ThreadMeta>();
   private consecutiveErrors = 0;
@@ -76,11 +77,30 @@ export class GmailChannel implements Channel {
         const current = JSON.parse(fs.readFileSync(tokensPath, 'utf-8'));
         Object.assign(current, newTokens);
         fs.writeFileSync(tokensPath, JSON.stringify(current, null, 2));
-        logger.debug('Gmail OAuth tokens refreshed');
+        logger.info('Gmail OAuth token refreshed and persisted');
       } catch (err) {
         logger.warn({ err }, 'Failed to persist refreshed Gmail tokens');
       }
     });
+
+    // Proactively refresh the token if it expires within 5 minutes
+    const refreshIfNeeded = async () => {
+      if (!this.oauth2Client) return;
+      try {
+        const creds = this.oauth2Client.credentials;
+        const expiresAt = creds.expiry_date ?? 0;
+        const remainingMs = expiresAt - Date.now();
+        if (remainingMs < 15 * 60 * 1000) {
+          logger.info({ remainingMs: Math.round(remainingMs / 1000) }, 'Gmail token expiring soon, refreshing');
+          await this.oauth2Client.getAccessToken();
+        }
+      } catch (err) {
+        logger.warn({ err }, 'Gmail proactive token refresh failed');
+      }
+    };
+    // Check immediately, then every 10 minutes
+    void refreshIfNeeded();
+    this.tokenRefreshTimer = setInterval(() => void refreshIfNeeded(), 10 * 60 * 1000);
 
     this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
 
@@ -173,6 +193,10 @@ export class GmailChannel implements Channel {
     if (this.pollTimer) {
       clearTimeout(this.pollTimer);
       this.pollTimer = null;
+    }
+    if (this.tokenRefreshTimer) {
+      clearInterval(this.tokenRefreshTimer);
+      this.tokenRefreshTimer = null;
     }
     this.gmail = null;
     this.oauth2Client = null;

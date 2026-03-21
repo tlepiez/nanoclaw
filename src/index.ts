@@ -9,7 +9,7 @@ import {
   TIMEZONE,
   TRIGGER_PATTERN,
 } from './config.js';
-import { startCredentialProxy } from './credential-proxy.js';
+import { startCredentialProxy, startOAuthRefresher } from './credential-proxy.js';
 import './channels/index.js';
 import {
   getChannelFactory,
@@ -476,6 +476,9 @@ async function main(): Promise<void> {
   logger.info('Database initialized');
   loadState();
   restoreRemoteControl();
+
+  // Keep OAuth token fresh (no-op if using API key)
+  startOAuthRefresher();
 
   // Start credential proxy (containers route API calls through this)
   const proxyServer = await startCredentialProxy(

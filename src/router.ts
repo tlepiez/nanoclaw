@@ -28,9 +28,56 @@ export function stripInternalTags(text: string): string {
   return text.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
 }
 
+/**
+ * Detects the API provider from an authentication error message.
+ * Returns the provider name (e.g. 'Claude/Anthropic') or null if not an auth error.
+ */
+export function detectApiProvider(text: string): string | null {
+  if (
+    !text.includes('authentication_error') &&
+    !text.includes('Failed to authenticate')
+  ) {
+    return null;
+  }
+  // Anthropic/Claude: identified by Anthropic JSON error envelope + request_id format
+  if (
+    text.includes('"type":"error"') &&
+    (text.includes('"request_id"') || text.includes('req_'))
+  ) {
+    return 'Claude/Anthropic';
+  }
+  // Google/Gmail: OAuth errors from Google APIs
+  if (
+    text.includes('google') ||
+    text.includes('gmail') ||
+    text.includes('accounts.google.com')
+  ) {
+    return 'Google/Gmail';
+  }
+  // GitHub
+  if (text.includes('github') || text.includes('github.com')) {
+    return 'GitHub';
+  }
+  // WhatsApp / Baileys
+  if (text.includes('whatsapp') || text.includes('baileys')) {
+    return 'WhatsApp';
+  }
+  return null;
+}
+
 export function formatOutbound(rawText: string): string {
   const text = stripInternalTags(rawText);
   if (!text) return '';
+
+  // Enrich authentication error messages with the API provider name
+  const provider = detectApiProvider(text);
+  if (provider) {
+    return text.replace(
+      'Failed to authenticate.',
+      `[${provider}] Failed to authenticate.`,
+    );
+  }
+
   return text;
 }
 

@@ -175,7 +175,10 @@ class HomeAssistantChannel implements Channel {
         },
       );
       if (!res.ok) {
-        logger.warn({ status: res.status }, 'HA persistent_notification failed');
+        logger.warn(
+          { status: res.status },
+          'HA persistent_notification failed',
+        );
       }
     } catch (err) {
       logger.error({ err }, 'Failed to send notification to HomeAssistant');
