@@ -122,13 +122,17 @@ jobs:
               `Triggered by push to main: ${context.sha}`
             ].join('\n');
 
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Merge-forward failed for ${failed.length} skill branch(es) after ${sha}`,
-              body,
-              labels: ['skill-maintenance']
-            });
+            try {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `Merge-forward failed for ${failed.length} skill branch(es) after ${sha}`,
+                body,
+                labels: ['skill-maintenance']
+              });
+            } catch (e) {
+              core.warning(`Could not create issue (Issues may be disabled): ${e.message}`);
+            }
 
       - name: Notify channel forks
         if: always()
