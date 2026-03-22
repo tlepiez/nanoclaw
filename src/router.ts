@@ -119,7 +119,6 @@ export function formatOutbound(rawText: string): string {
   return text;
 }
 
-
 export function routeOutbound(
   channels: Channel[],
   jid: string,
