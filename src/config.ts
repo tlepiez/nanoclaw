@@ -6,13 +6,29 @@ import { readEnvFile } from './env.js';
 // Read config values from .env (falls back to process.env).
 // Secrets (API keys, tokens) are NOT read here — they are loaded only
 // by the credential proxy (credential-proxy.ts), never exposed to containers.
-const envConfig = readEnvFile(['ASSISTANT_NAME', 'ASSISTANT_HAS_OWN_NUMBER']);
+const envConfig = readEnvFile([
+  'ASSISTANT_NAME',
+  'ASSISTANT_HAS_OWN_NUMBER',
+  'GMAIL_ALLOWED_SENDERS',
+]);
 
 export const ASSISTANT_NAME =
   process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
 export const ASSISTANT_HAS_OWN_NUMBER =
   (process.env.ASSISTANT_HAS_OWN_NUMBER ||
     envConfig.ASSISTANT_HAS_OWN_NUMBER) === 'true';
+
+// Comma-separated list of email addresses allowed to trigger Gmail channel.
+// '*' or unset = allow all senders (backwards-compatible default).
+const rawGmailAllowedSenders =
+  process.env.GMAIL_ALLOWED_SENDERS || envConfig.GMAIL_ALLOWED_SENDERS || '*';
+export const GMAIL_ALLOWED_SENDERS: string[] | '*' =
+  rawGmailAllowedSenders === '*'
+    ? '*'
+    : rawGmailAllowedSenders
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
 export const POLL_INTERVAL = 2000;
 export const SCHEDULER_POLL_INTERVAL = 60000;
 

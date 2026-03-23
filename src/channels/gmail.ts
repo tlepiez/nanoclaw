@@ -6,6 +6,7 @@ import { google, gmail_v1 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 
 // isMain flag is used instead of MAIN_GROUP_FOLDER constant
+import { GMAIL_ALLOWED_SENDERS } from '../config.js';
 import { logger } from '../logger.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
@@ -91,7 +92,10 @@ export class GmailChannel implements Channel {
         const expiresAt = creds.expiry_date ?? 0;
         const remainingMs = expiresAt - Date.now();
         if (remainingMs < 15 * 60 * 1000) {
-          logger.info({ remainingMs: Math.round(remainingMs / 1000) }, 'Gmail token expiring soon, refreshing');
+          logger.info(
+            { remainingMs: Math.round(remainingMs / 1000) },
+            'Gmail token expiring soon, refreshing',
+          );
           await this.oauth2Client.getAccessToken();
         }
       } catch (err) {
@@ -100,7 +104,10 @@ export class GmailChannel implements Channel {
     };
     // Check immediately, then every 10 minutes
     void refreshIfNeeded();
-    this.tokenRefreshTimer = setInterval(() => void refreshIfNeeded(), 10 * 60 * 1000);
+    this.tokenRefreshTimer = setInterval(
+      () => void refreshIfNeeded(),
+      10 * 60 * 1000,
+    );
 
     this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
 
@@ -282,6 +289,17 @@ export class GmailChannel implements Channel {
 
     // Skip emails from self (our own replies)
     if (senderEmail === this.userEmail) return;
+
+    // Sender allowlist: only process emails from trusted senders
+    if (GMAIL_ALLOWED_SENDERS !== '*') {
+      if (!GMAIL_ALLOWED_SENDERS.includes(senderEmail.toLowerCase())) {
+        logger.info(
+          { senderEmail, subject },
+          'Gmail: sender not in allowlist, ignoring',
+        );
+        return;
+      }
+    }
 
     // Extract body text
     const body = this.extractTextBody(msg.data.payload);
