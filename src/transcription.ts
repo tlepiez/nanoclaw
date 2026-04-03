@@ -1,54 +1,70 @@
+import { execFile } from 'child_process';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { promisify } from 'util';
+
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
 import { WAMessage, WASocket } from '@whiskeysockets/baileys';
 
-import { readEnvFile } from './env.js';
+const execFileAsync = promisify(execFile);
 
-interface TranscriptionConfig {
-  model: string;
-  enabled: boolean;
-  fallbackMessage: string;
-}
+const WHISPER_BIN =
+  process.env.WHISPER_BIN || '/home/thierry/whisper.cpp/build/bin/whisper-cli';
+const WHISPER_MODEL =
+  process.env.WHISPER_MODEL ||
+  '/home/thierry/whisper.cpp/models/ggml-base.bin';
 
-const DEFAULT_CONFIG: TranscriptionConfig = {
-  model: 'whisper-1',
-  enabled: true,
-  fallbackMessage: '[Voice Message - transcription unavailable]',
-};
-
-async function transcribeWithOpenAI(
-  audioBuffer: Buffer,
-  config: TranscriptionConfig,
-): Promise<string | null> {
-  const env = readEnvFile(['OPENAI_API_KEY']);
-  const apiKey = env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    console.warn('OPENAI_API_KEY not set in .env');
-    return null;
-  }
+async function transcribeWithWhisper(audioBuffer: Buffer): Promise<string | null> {
+  const tmpDir = os.tmpdir();
+  const ts = Date.now();
+  const tmpOgg = path.join(tmpDir, `nanoclaw-voice-${ts}.ogg`);
+  const tmpWav = path.join(tmpDir, `nanoclaw-voice-${ts}.wav`);
 
   try {
-    const openaiModule = await import('openai');
-    const OpenAI = openaiModule.default;
-    const toFile = openaiModule.toFile;
+    fs.writeFileSync(tmpOgg, audioBuffer);
 
-    const openai = new OpenAI({ apiKey });
+    // Convert OGG/Opus (WhatsApp format) to WAV 16kHz mono (whisper-cli requirement)
+    await execFileAsync('ffmpeg', [
+      '-i', tmpOgg,
+      '-ar', '16000',
+      '-ac', '1',
+      '-f', 'wav',
+      tmpWav,
+      '-y',
+    ]);
 
-    const file = await toFile(audioBuffer, 'voice.ogg', {
-      type: 'audio/ogg',
-    });
+    const { stdout } = await execFileAsync(WHISPER_BIN, [
+      '-m', WHISPER_MODEL,
+      '-f', tmpWav,
+      '--no-timestamps',
+      '-nt',
+      '-l', 'auto',
+    ]);
 
-    const transcription = await openai.audio.transcriptions.create({
-      file: file,
-      model: config.model,
-      response_format: 'text',
-    });
+    // Filter out whisper diagnostic lines, keep only transcript text
+    const transcript = stdout
+      .split('\n')
+      .filter(
+        (line) =>
+          line.trim() &&
+          !line.startsWith('whisper_') &&
+          !line.startsWith('ggml_') &&
+          !line.startsWith('system_info') &&
+          !line.startsWith('main:') &&
+          !line.startsWith('['),
+      )
+      .join(' ')
+      .trim();
 
-    // When response_format is 'text', the API returns a plain string
-    return transcription as unknown as string;
+    return transcript || null;
   } catch (err) {
-    console.error('OpenAI transcription failed:', err);
+    console.error('whisper-cli transcription failed:', err);
     return null;
+  } finally {
+    for (const f of [tmpOgg, tmpWav]) {
+      try { fs.unlinkSync(f); } catch { /* ignore */ }
+    }
   }
 }
 
@@ -56,12 +72,6 @@ export async function transcribeAudioMessage(
   msg: WAMessage,
   sock: WASocket,
 ): Promise<string | null> {
-  const config = DEFAULT_CONFIG;
-
-  if (!config.enabled) {
-    return config.fallbackMessage;
-  }
-
   try {
     const buffer = (await downloadMediaMessage(
       msg,
@@ -75,21 +85,16 @@ export async function transcribeAudioMessage(
 
     if (!buffer || buffer.length === 0) {
       console.error('Failed to download audio message');
-      return config.fallbackMessage;
+      return null;
     }
 
     console.log(`Downloaded audio message: ${buffer.length} bytes`);
 
-    const transcript = await transcribeWithOpenAI(buffer, config);
-
-    if (!transcript) {
-      return config.fallbackMessage;
-    }
-
-    return transcript.trim();
+    const transcript = await transcribeWithWhisper(buffer);
+    return transcript ? transcript.trim() : null;
   } catch (err) {
     console.error('Transcription error:', err);
-    return config.fallbackMessage;
+    return null;
   }
 }
 

@@ -47,6 +47,10 @@ When you learn something important:
 - Split files larger than 500 lines into folders
 - Keep an index in your memory for the files you create
 
+## Voice Messages
+
+When you receive a message starting with `[Voice: ...]`, it is a fully transcribed voice note from the user. Treat it exactly like a text message — respond to its content directly. Do NOT add any comments about transcription, Whisper, or implementation status. The transcription pipeline is fully operational.
+
 ## Message Formatting
 
 NEVER use markdown. Only use WhatsApp/Telegram formatting:

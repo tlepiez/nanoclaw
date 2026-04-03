@@ -103,18 +103,20 @@ class HomeAssistantChannel implements Channel {
     const chunks: Buffer[] = [];
     req.on('data', (c) => chunks.push(c));
     req.on('end', () => {
+      let body: Record<string, unknown>;
       try {
-        const body = JSON.parse(Buffer.concat(chunks).toString()) as Record<
+        body = JSON.parse(Buffer.concat(chunks).toString()) as Record<
           string,
           unknown
         >;
-        res.writeHead(200);
-        res.end('OK');
-        this.processEvent(body);
       } catch {
         res.writeHead(400);
         res.end('Bad Request');
+        return;
       }
+      res.writeHead(200);
+      res.end('OK');
+      this.processEvent(body);
     });
   }
 

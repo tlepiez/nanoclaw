@@ -69,20 +69,30 @@ export function detectApiProvider(text: string): string | null {
  * Patterns indicating a "nothing found" result from a scheduled task.
  * Messages matching these patterns are suppressed (return '' from formatOutbound).
  */
+
 const TASK_SILENCE_PATTERNS = [
-  // French
+  // French — rien trouvé
   'aucun email non lu',
   'aucun email trouvé',
+  'aucun email de livraison',
   'aucune notification de livraison',
   'aucun virement',
   'aucune livraison',
   'aucune mise à jour de livraison',
   'aucun nouveau message',
+  'aucun suivi de colis',
   'rien à signaler',
   'rien de nouveau',
+  'pas une notification de livraison',
+  'uniquement promotionnel',
+  // French — tâche terminée / méta
   'tâche terminée silencieusement',
+  'surveillance terminée',
   'pas de message envoyé',
   'arrêt silencieux',
+  'silence complet',
+  'envoyé sur whatsapp',
+  'conformément aux instructions',
   // English
   'no emails found',
   'no unread emails',
@@ -93,7 +103,9 @@ const TASK_SILENCE_PATTERNS = [
   'completed silently',
   'task completed silently',
   'no new messages',
+  'sent to whatsapp',
 ];
+
 
 export function isSilentResult(text: string): boolean {
   const lower = text.toLowerCase();

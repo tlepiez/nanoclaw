@@ -18,6 +18,7 @@ Single Node.js process with skill-based channel system. Channels (WhatsApp, Tele
 | `src/container-runner.ts` | Spawns agent containers with mounts |
 | `src/task-scheduler.ts` | Runs scheduled tasks |
 | `src/db.ts` | SQLite operations |
+| `src/transcription.ts` | Voice transcription via local whisper.cpp (no API key needed) |
 | `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
 | `container/skills/agent-browser.md` | Browser automation tool (available to all agents via Bash) |
 
@@ -53,6 +54,21 @@ launchctl kickstart -k gui/$(id -u)/com.nanoclaw  # restart
 systemctl --user start nanoclaw
 systemctl --user stop nanoclaw
 systemctl --user restart nanoclaw
+```
+
+## Voice Transcription
+
+WhatsApp voice notes are automatically transcribed using local whisper.cpp (no API key, no cost).
+
+- Binary: `~/whisper.cpp/build/bin/whisper-cli`
+- Model: `~/whisper.cpp/models/ggml-base.bin` (148MB)
+- Override via env: `WHISPER_BIN`, `WHISPER_MODEL`
+- Pipeline: OGG → ffmpeg converts to WAV 16kHz mono → whisper-cli transcribes
+- Speed: ~3-6s for a 10s voice note on Raspberry Pi 5
+
+To rebuild whisper.cpp after an update:
+```bash
+cd ~/whisper.cpp && cmake --build build --config Release -j$(nproc)
 ```
 
 ## Troubleshooting
