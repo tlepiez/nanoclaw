@@ -60,6 +60,24 @@ export class WhatsAppChannel implements Channel {
   }
 
   private async connectInternal(onFirstOpen?: () => void): Promise<void> {
+    // Tear down any previous socket before creating a new one. On reconnect the
+    // old socket's keepalive interval, signal-key-store cache timer, and our
+    // event listeners would otherwise leak — and a stale connection.update
+    // handler could trigger further reconnects, cascading new sockets. This was
+    // a slow heap leak that crashed the process (OOM) after days of reconnects.
+    // Order matters: remove OUR listeners first, because sock.end() emits a
+    // final connection.update 'close' that would otherwise re-enter this path.
+    if (this.sock) {
+      try {
+        this.sock.ev.removeAllListeners('connection.update');
+        this.sock.ev.removeAllListeners('creds.update');
+        this.sock.ev.removeAllListeners('messages.upsert');
+        this.sock.end(undefined);
+      } catch (err) {
+        logger.warn({ err }, 'Error tearing down previous WhatsApp socket');
+      }
+    }
+
     const authDir = path.join(STORE_DIR, 'auth');
     fs.mkdirSync(authDir, { recursive: true });
 
